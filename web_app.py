@@ -83,10 +83,12 @@ with col2:
             img_pixels = img_pixels / 255.0  # Intensity Range Uniform Normalization
             
             # Execute Forward Pass
-            predictions = model.predict(img_pixels, verbose=0)[0]
+            # To this correct explicit batch-index format:
+            predictions = model.predict(img_pixels, verbose=0)[0] # Extract the first prediction row slice
             max_index = int(np.argmax(predictions))
             predicted_emotion = emotion_labels[max_index]
             confidence_score = float(predictions[max_index]) * 100
+
             
             # Result Visualization Framework
             st.success(f"### Classification Result: **{predicted_emotion}**")
