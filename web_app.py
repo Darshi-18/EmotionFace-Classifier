@@ -2,74 +2,124 @@ import os
 import cv2
 import numpy as np
 import streamlit as st
+import pandas as pd
+import altair as alt
 from tensorflow.keras.models import load_model
 from PIL import Image
 
-# Set up page configurations
-st.set_page_config(page_title="EmotionFace Classifier", layout="centered")
-st.title("🧠 EmotionFace: Facial Expression Classifier")
-st.write("Choose your preferred input method below to classify emotional expressions.")
+# 1. Page Configuration & Theme Initialization
+st.set_page_config(
+    page_title="EmotionFace Analytics",
+    page_icon="🧠",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-# 1. Load the trained model weights safely
+# Custom CSS for styling adjustments
+st.markdown("""
+    <style>
+    .main .block-container { max-width: 1000px; padding-top: 2rem; }
+    h1 { font-weight: 800 !important; color: #F0F2F6; }
+    .stAlert p { font-size: 1.15rem !important; font-weight: 600; }
+    div[data-testid="stMetric"] { background-color: #1E232A; border-radius: 10px; padding: 15px; border: 1px solid #30363D; }
+    </style>
+""", unsafe_allow_html=True)
+
+# 2. App Headers
+st.title("🧠 EmotionFace Analytics Platform")
+st.write("An advanced Deep Learning system designed to decode human facial expressions with multi-class probability estimation mapping.")
+st.markdown("---")
+
+# 3. Model Engine Optimization
 MODEL_PATH = 'best_emotion_model.h5'
 
 @st.cache_resource
 def load_emotion_model():
     if not os.path.exists(MODEL_PATH):
-        st.error(f"Could not find '{MODEL_PATH}' file in this directory!")
+        st.error(f"🚨 Model execution failure: '{MODEL_PATH}' missing from root environment folder.")
         return None
     return load_model(MODEL_PATH, compile=False)
 
 model = load_emotion_model()
 emotion_labels = ['Angry', 'Disgust', 'Fear', 'Happy', 'Sad', 'Surprise', 'Neutral']
 
-# 2. Input Mode Selection: Let users choose between Uploading or Webcam
-input_mode = st.radio("Select Input Method:", ("Upload an Image File", "Use Live Webcam Cam"))
+# 4. Two-Column Dashboard Setup
+col1, col2 = st.columns([1, 1.2], gap="large")
 
-img_data = None
+with col1:
+    st.subheader("📸 Media Feed Controller")
+    
+    # Input toggle using tabs for a cleaner, modern layout feel
+    input_tab = st.tabs(["📁 File Drop Zone", "🎥 Live Camera Capture"])
+    img_data = None
+    
+    with input_tab[0]:
+        uploaded_file = st.file_uploader("Upload static target image matrix:", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
+        if uploaded_file is not None:
+            image = Image.open(uploaded_file)
+            st.image(image, caption="Target Image Matrix Source", use_container_width=True)
+            img_data = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+            
+    with input_tab[1]:
+        img_file_buffer = st.camera_input("Acquire live webcam streaming snapshot:", label_visibility="collapsed")
+        if img_file_buffer is not None:
+            bytes_data = img_file_buffer.getvalue()
+            img_data = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
 
-if input_mode == "Upload an Image File":
-    uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
-    if uploaded_file is not None:
-        # Open uploaded image using PIL and display a preview
-        image = Image.open(uploaded_file)
-        st.image(image, caption="Uploaded Image Preview", use_container_width=True)
-        # Convert PIL image to an OpenCV compatible numpy array format
-        img_data = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+with col2:
+    st.subheader("📊 Model Diagnostics & Analytics")
+    
+    if img_data is None:
+        # Informative empty-state dashboard banner
+        st.info("💡 Awaiting input media payload. Please upload an image matrix or capture a live webcam frame in the controller panel to initialize inference tracking.")
+    
+    elif model is not None:
+        with st.spinner("Processing neural inference transformations..."):
+            # Image Preprocessing & Feature Extraction
+            gray_img = cv2.cvtColor(img_data, cv2.COLOR_BGR2GRAY)
+            resized_img = cv2.resize(gray_img, (48, 48))
+            img_pixels = np.expand_dims(resized_img, axis=0)
+            img_pixels = np.expand_dims(img_pixels, axis=-1)
+            img_pixels = img_pixels / 255.0  # Intensity Range Uniform Normalization
+            
+            # Execute Forward Pass
+            predictions = model.predict(img_pixels, verbose=0)[0]
+            max_index = int(np.argmax(predictions))
+            predicted_emotion = emotion_labels[max_index]
+            confidence_score = float(predictions[max_index]) * 100
+            
+            # Result Visualization Framework
+            st.success(f"### Classification Result: **{predicted_emotion}**")
+            
+            # Layout metric widgets
+            m_col1, m_col2 = st.columns(2)
+            with m_col1:
+                st.metric(label="Primary Classification Confidence", value=f"{confidence_score:.2f}%")
+            with m_col2:
+                # Add an indicator card for execution status
+                st.metric(label="Inference Status", value="Success (200 OK)", delta="Stable")
+            
+            st.write("#### 📈 Full Class Density Map Distribution")
+            
+            # Build DataFrame for advanced clean plotting
+            df_chart = pd.DataFrame({
+                'Emotion': emotion_labels,
+                'Probability (%)': [float(p) * 100 for p in predictions]
+            }).sort_values(by='Probability (%)', ascending=False)
+            
+            # Build an elegant horizontal Altair Chart
+            chart = alt.Chart(df_chart).mark_bar(
+                cornerRadiusTopRight=5,
+                cornerRadiusBottomRight=5
+            ).encode(
+                x=alt.X('Probability (%)', title="Confidence Percentage (%)", scale=alt.Scale(domain=[0, 100])),
+                y=alt.Y('Emotion', sort='-x', title="Class Label"),
+                color=alt.Color('Probability (%)', scale=alt.Scale(scheme='viridis'), legend=None)
+            ).properties(
+                height=260
+            )
+            
+            st.altair_chart(chart, use_container_width=True)
 
-else:
-    img_file_buffer = st.camera_input("Capture your face to run the system:")
-    if img_file_buffer is not None:
-        # Read the webcam snapshot buffer array
-        bytes_data = img_file_buffer.getvalue()
-        img_data = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
-
-# 3. Model Classification Execution Engine
-if img_data is not None and model is not None:
-    # Preprocess image structure to match model input parameters (Grayscale, 48x48)
-    gray_img = cv2.cvtColor(img_data, cv2.COLOR_BGR2GRAY)
-    resized_img = cv2.resize(gray_img, (48, 48))
-    
-    # Scale array dimensions to match batch size requirements: (1, 48, 48, 1)
-    img_pixels = np.expand_dims(resized_img, axis=0)
-    img_pixels = np.expand_dims(img_pixels, axis=-1)
-    img_pixels = img_pixels / 255.0  # Normalize intensity
-    
-    # Run the model classification
-    predictions = model.predict(img_pixels, verbose=0)
-    
-    # Extract index and score directly from the first element of the batch output row
-    max_index = int(np.argmax(predictions[0]))
-    predicted_emotion = emotion_labels[max_index]
-    confidence_score = float(predictions[0][max_index]) * 100
-    
-    # Display results to the web screen user panel
-    st.success(f"### Predicted Emotion: **{predicted_emotion}**")
-    st.metric(label="Prediction Confidence", value=f"{confidence_score:.2f}%")
-    # Create a clean probability dictionary for all emotions
-    prob_dict = {emotion_labels[i]: float(predictions[0][i]) for i in range(len(emotion_labels))}
-    
-    # Display a beautiful horizontal bar chart of the distributions
-    st.write("### 📊 Emotion Probability Distribution")
-    st.bar_chart(prob_dict)
-
+st.markdown("---")
+st.caption("🧠 EmotionFace Analytics Platform v2.0 • Powered by TensorFlow Keras CNN and Streamlit Native Architecture Engines.")
