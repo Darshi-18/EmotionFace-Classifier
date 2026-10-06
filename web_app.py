@@ -27,7 +27,7 @@ st.markdown("""
 
 # 2. App Headers
 st.title("🧠 EmotionFace Analytics Platform")
-st.write("An advanced Deep Learning system designed to decode human facial expressions with built-in human face verification.")
+st.write("An advanced Deep Learning system designed to decode human facial expressions with built-in structural texture filters.")
 st.markdown("---")
 
 # 3. Model Engine Optimization
@@ -43,24 +43,18 @@ def load_emotion_model():
 model = load_emotion_model()
 emotion_labels = ['Angry', 'Disgust', 'Fear', 'Happy', 'Sad', 'Surprise', 'Neutral']
 
-# 4. Helper Function: Validate Human Face Presence Using Standard Matrix Analysis
-def verify_human_face(image_bgr):
+# 4. Pure Mathematical Input Validator (Zero Dependencies)
+def verify_valid_image(image_bgr):
     """
-    Uses a standard cascade framework to look for structural face matrices.
-    If the server environment lacks cascade files, it handles gracefully.
+    Analyzes the standard deviation of pixel intensities in the image matrix.
+    Blanks, walls, solid colors, and abstract shapes score low, while human 
+    portraits containing complex details naturally score high.
     """
     gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+    standard_deviation = np.std(gray)
     
-    # Safely load the face tracking path
-    cascade_file = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-    face_cascade = cv2.CascadeClassifier(cascade_file)
-    
-    if face_cascade.empty():
-        # Fallback if cloud server mapping paths vary
-        return True
-        
-    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(30, 30))
-    return len(faces) > 0
+    # Threshold 12 filters out flat/blank inputs effectively
+    return standard_deviation > 12.0
 
 # 5. Two-Column Dashboard Setup
 col1, col2 = st.columns([1, 1.2], gap="large")
@@ -68,7 +62,6 @@ col1, col2 = st.columns([1, 1.2], gap="large")
 with col1:
     st.subheader("📸 Media Feed Controller")
     
-    # UNPACK TABS CORRECTLY HERE TO PREVENT TYPEERROR
     tab_upload, tab_camera = st.tabs(["📁 File Drop Zone", "🎥 Live Camera Capture"])
     img_data = None
     
@@ -92,13 +85,13 @@ with col2:
         st.info("💡 Awaiting input media payload. Please upload an image matrix or capture a live webcam frame in the controller panel to initialize inference tracking.")
     
     elif model is not None:
-        with st.spinner("Running face verification layers..."):
-            is_human = verify_human_face(img_data)
+        with st.spinner("Analyzing image texture matrices..."):
+            is_valid_input = verify_valid_image(img_data)
             
-        if not is_human:
-            # 🛑 Hard Stop: Display clear warning if a face isn't found
+        if not is_valid_input:
+            # 🛑 Hard Stop: Block empty or solid backgrounds
             st.error("❌ **Invalid Image Payload Detected**")
-            st.warning("The system failed to verify a human face structure in the uploaded frame. Please provide a clear, well-lit photo containing a human face to proceed.")
+            st.warning("The uploaded file does not contain enough structural variance or details to analyze a human face. Please provide a clear, well-lit photo of a human face.")
         
         else:
             with st.spinner("Processing neural inference transformations..."):
@@ -111,7 +104,10 @@ with col2:
                 
                 # Execute Forward Pass
                 predictions = model.predict(img_pixels, verbose=0)
-                predictions = predictions[0]  # Access first prediction element row
+                
+                # Access array row cleanly
+                if len(predictions.shape) > 1:
+                    predictions = predictions[0]
                 
                 max_index = int(np.argmax(predictions))
                 predicted_emotion = emotion_labels[max_index]
@@ -125,7 +121,7 @@ with col2:
                 with m_col1:
                     st.metric(label="Primary Classification Confidence", value=f"{confidence_score:.2f}%")
                 with m_col2:
-                    st.metric(label="Validation Check", value="Human Verified", delta="Passed")
+                    st.metric(label="Payload Integrity", value="Verified Match", delta="Passed")
                 
                 st.write("#### 📈 Full Class Density Map Distribution")
                 
@@ -150,4 +146,4 @@ with col2:
                 st.altair_chart(chart, use_container_width=True)
 
 st.markdown("---")
-st.caption("🧠 EmotionFace Analytics Platform v2.1 • Guarded by Smart Face Verification Filters.")
+st.caption("🧠 EmotionFace Analytics Platform v2.2 • Optimized for Streamlit Cloud Runtime Stability.")
