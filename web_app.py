@@ -115,7 +115,7 @@ with col2:
                 predictions = model.predict(img_pixels, verbose=0)
                 
                 if len(predictions.shape) > 1:
-                    predictions = predictions
+                    predictions = predictions[0]
                 
                 max_index = int(np.argmax(predictions))
                 predicted_emotion = emotion_labels[max_index]
@@ -139,12 +139,12 @@ with col2:
                     'Probability (%)': [float(p) * 100 for p in predictions]
                 }).sort_values(by='Probability (%)', ascending=False)
                 
-                # Build an elegant horizontal Altair Chart
+                # Build an elegant horizontal Altair Chart (Fixed domain value)
                 chart = alt.Chart(df_chart).mark_bar(
                     cornerRadiusTopRight=5,
                     cornerRadiusBottomRight=5
                 ).encode(
-                    x=alt.X('Probability (%)', title="Confidence Percentage (%)", scale=alt.Scale(domain=)),
+                    x=alt.X('Probability (%)', title="Confidence Percentage (%)", scale=alt.Scale(domain=[0, 100])),
                     y=alt.Y('Emotion', sort='-x', title="Class Label"),
                     color=alt.Color('Probability (%)', scale=alt.Scale(scheme='viridis'), legend=None)
                 ).properties(
